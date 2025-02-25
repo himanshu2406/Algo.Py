@@ -479,15 +479,15 @@ def show_backtester_page():
             st.subheader("📈 Equity (PNL) Curve")
             fig_pnl = go.Figure()
             fig_pnl.add_trace(go.Scatter(
-                x=pf.value.index, 
-                y=pf.value,
+                x=pf.value().index, 
+                y=pf.value(),
                 mode='lines',
                 name="Portfolio Value"
             ))
             fig_pnl.update_layout(
                 yaxis_title="Portfolio Value",
                 title="Equity Curve",
-                yaxis_type="log" if pf.value.max() > 10000 else "linear"  # Log scale for large values
+                yaxis_type="log" if pf.value().max() > 10000 else "linear"  # Log scale for large values
             )
             st.plotly_chart(fig_pnl)
 
@@ -495,56 +495,42 @@ def show_backtester_page():
             st.subheader("📈 Cumulative Returns")
             fig_cum = go.Figure()
             fig_cum.add_trace(go.Scatter(
-                x=pf.cumulative_returns.index, 
-                y=pf.cumulative_returns,
+                x=pf.cumulative_returns().index, 
+                y=pf.cumulative_returns(),
                 mode='lines',
                 name="Cumulative Returns"
             ))
             fig_cum.update_layout(
                 yaxis_title="Cumulative Returns",
                 title="Cumulative Returns Curve",
-                yaxis_type="log" if pf.cumulative_returns.max() > 10 else "linear"  # Log scale for large movements
+                yaxis_type="log" if pf.cumulative_returns().max() > 10 else "linear"  # Log scale for large movements
             )
             st.plotly_chart(fig_cum)
 
             # Returns Overview (pf.returns is a property, not a method)
             st.subheader("📊 Returns Overview")
-            returns_series = pf.returns
+            returns_series = pf.returns()
             returns_df = returns_series.to_frame(name="Returns")
             st.dataframe(returns_df)
 
 
             # Trade History
             st.subheader("📝 Trade History")
-            st.dataframe(pf.trade_history)
-
-            # Trade Signals (Records in a human-readable format)
-            st.subheader("📌 Trade Signals")
             st.dataframe(pf.trades.records_readable)
         
 
         with st.spinner("Loading Advanced statistic plots..."):
-            # Expanding Maximum Favorable Excursion (MFE)
-            st.subheader("📊 Expanding MFE")
-            fig_mfe = pf.trades.plot_expanding_mfe_returns()
-            st.plotly_chart(fig_mfe)
-
-            # Expanding Maximum Adverse Excursion (MAE)
-            st.subheader("📊 Expanding MAE")
-            fig_mae = pf.trades.plot_expanding_mae_returns()
-            st.plotly_chart(fig_mae)
-
 
             # Risk-adjusted Metrics: Sharpe & Sortino Ratios
-            sharpe_ratio = pf.get_sharpe_ratio()
-            sortino_ratio = pf.get_sortino_ratio()
+            sharpe_ratio = pf.sharpe_ratio()
+            sortino_ratio = pf.sortino_ratio()
             st.metric(label="📈 Sharpe Ratio", value=f"{int(sharpe_ratio):.2f}")
             st.metric(label="📈 Sortino Ratio", value=f"{int(sortino_ratio):.2f}")
 
             # Benchmark Comparison (if available)
             if hasattr(pf, 'benchmark_cumulative_returns'):
                 st.subheader("📊 Benchmark vs Portfolio Performance")
-                st.line_chart(pf.benchmark_cumulative_returns)
+                st.line_chart(pf.cumulative_returns())
         
 
     # 📌 Save Portfolio with Metadata
@@ -561,6 +547,8 @@ def show_backtester_page():
                 st.success(f"✅ Portfolio saved successfully as database/backtest/{save_filename}")
             except Exception as e:
                 st.error(f"❌ Error while saving: {e}")
+                import traceback
+                print(traceback.print_exc())
 
 
 
@@ -629,15 +617,15 @@ def show_backtester_page():
                         st.subheader("📈 Equity (PNL) Curve")
                         fig_pnl = go.Figure()
                         fig_pnl.add_trace(go.Scatter(
-                            x=pf.value.index, 
-                            y=pf.value,
+                            x=pf.value().index, 
+                            y=pf.value(),
                             mode='lines',
                             name="Portfolio Value"
                         ))
                         fig_pnl.update_layout(
                             yaxis_title="Portfolio Value",
                             title="Equity Curve",
-                            yaxis_type="log" if pf.value.max() > 10000 else "linear"
+                            yaxis_type="log" if pf.value().max() > 10000 else "linear"
                         )
                         st.plotly_chart(fig_pnl)
 
@@ -645,8 +633,8 @@ def show_backtester_page():
                         st.subheader("📈 Cumulative Returns")
                         fig_cum = go.Figure()
                         fig_cum.add_trace(go.Scatter(
-                            x=pf.cumulative_returns.index, 
-                            y=pf.cumulative_returns,
+                            x=pf.cumulative_returns().index, 
+                            y=pf.cumulative_returns(),
                             mode='lines',
                             name="Cumulative Returns"
                         ))
@@ -664,34 +652,21 @@ def show_backtester_page():
 
                         # 📑 Trade History
                         st.subheader("📝 Trade History")
-                        st.dataframe(pf.trade_history)
-
-                        # 🔍 Trade Signals
-                        st.subheader("📌 Trade Signals")
                         st.dataframe(pf.trades.records_readable)
 
                         # 🔍 Advanced Metrics & Risk Analysis
                         with st.spinner("Loading Advanced Statistics..."):
-                            # 📊 Expanding Maximum Favorable Excursion (MFE)
-                            st.subheader("📊 Expanding MFE")
-                            fig_mfe = pf.trades.plot_expanding_mfe_returns()
-                            st.plotly_chart(fig_mfe)
-
-                            # 📊 Expanding Maximum Adverse Excursion (MAE)
-                            st.subheader("📊 Expanding MAE")
-                            fig_mae = pf.trades.plot_expanding_mae_returns()
-                            st.plotly_chart(fig_mae)
 
                             # 📈 Risk-adjusted Metrics: Sharpe & Sortino Ratios
-                            sharpe_ratio = pf.get_sharpe_ratio()
-                            sortino_ratio = pf.get_sortino_ratio()
+                            sharpe_ratio = pf.sharpe_ratio()
+                            sortino_ratio = pf.sortino_ratio()
                             st.metric(label="📈 Sharpe Ratio", value=f"{sharpe_ratio:.2f}")
                             st.metric(label="📈 Sortino Ratio", value=f"{sortino_ratio:.2f}")
 
                             # 📊 Benchmark Comparison (if available)
                             if hasattr(pf, 'benchmark_cumulative_returns'):
                                 st.subheader("📊 Benchmark vs Portfolio Performance")
-                                st.line_chart(pf.benchmark_cumulative_returns)
+                                st.line_chart(pf.cumulative_returns())
 
                     if deploy_col2.button("🚀 Deploy Strategy"):
                         # Get backtest UUID and parameters

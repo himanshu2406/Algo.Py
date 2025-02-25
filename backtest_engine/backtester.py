@@ -1,5 +1,5 @@
 import pandas as pd
-import vectorbtpro as vbt
+import vectorbt as vbt
 from pandas.tseries.frequencies import to_offset
 from pathlib import Path
 import json
@@ -92,20 +92,19 @@ class Backtester:
         self.progress_callback(50, "Simulating portfolio...")
         pf = vbt.Portfolio.from_signals(
             close=close_data,
-            open=open_data,
             entries=entries,
             exits=exits,
             direction='longonly',
             init_cash=self.init_cash,
-            cash_sharing=self.cash_sharing,
-            size=self.size,
-            size_type="valuepercent",
             fees=self.fees,
             slippage=self.slippage,
+            size=self.size,
+            size_type = 2, 
+            cash_sharing=self.cash_sharing,
             allow_partial=self.allow_partial,
             freq=self._convert_timeframe_to_freq(),
-            sim_start=self.start_date,
-            sim_end=self.end_date,
+            # sim_start=self.start_date, # TODO : Implement this outside vbt , trim close data based on sim_start , sim_end
+            # sim_end=self.end_date,
         )
 
         self.progress_callback(75, "Saving results...")
@@ -235,9 +234,9 @@ class Backtester:
             "allow_partial": self.allow_partial,
             "strategy_params": self.strategy_object.params,
             "performance": {
-                "returns": float(pf.total_return),
-                "sharpe_ratio": float(pf.sharpe_ratio),
-                "max_drawdown": float(pf.max_drawdown),
+                "returns": float(pf.total_return()),
+                "sharpe_ratio": float(pf.sharpe_ratio()),
+                "max_drawdown": float(pf.max_drawdown()),
                 "duration_days": (self.end_date - self.start_date).days
             }
         }

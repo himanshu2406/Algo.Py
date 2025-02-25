@@ -64,21 +64,21 @@ if "pf" in st.session_state:
 
     st.subheader("📈 Equity (PNL) Curve")
     fig_pnl = go.Figure()
-    fig_pnl.add_trace(go.Scatter(x=pf.value.index, y=pf.value, mode='lines', name="Portfolio Value"))
+    fig_pnl.add_trace(go.Scatter(x=pf.value().index, y=pf.value(), mode='lines', name="Portfolio Value"))
     fig_pnl.update_layout(
         yaxis_title="Portfolio Value",
         title="Equity Curve",
-        yaxis_type="log" if pf.value.max() > 10000 else "linear"
+        yaxis_type="log" if pf.value().max() > 10000 else "linear"
     )
     st.plotly_chart(fig_pnl)
 
     st.subheader("📈 Cumulative Returns")
     fig_cum = go.Figure()
-    fig_cum.add_trace(go.Scatter(x=pf.cumulative_returns.index, y=pf.cumulative_returns, mode='lines', name="Cumulative Returns"))
+    fig_cum.add_trace(go.Scatter(x=pf.cumulative_returns().index, y=pf.cumulative_returns(), mode='lines', name="Cumulative Returns"))
     fig_cum.update_layout(
         yaxis_title="Cumulative Returns",
         title="Cumulative Returns Curve",
-        yaxis_type="log" if pf.cumulative_returns.max() > 10 else "linear"
+        yaxis_type="log" if pf.cumulative_returns().max() > 10 else "linear"
     )
     st.plotly_chart(fig_cum)
 
