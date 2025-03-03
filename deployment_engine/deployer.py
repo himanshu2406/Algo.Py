@@ -1,5 +1,5 @@
 import pandas as pd
-import vectorbtpro as vbt
+import vectorbt as vbt
 from pandas.tseries.frequencies import to_offset
 from pathlib import Path
 import json

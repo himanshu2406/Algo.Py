@@ -3,7 +3,7 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import vectorbtpro as vbt
+import vectorbt as vbt
 import pandas as pd
 import scipy.optimize as sco
 import numpy as np
