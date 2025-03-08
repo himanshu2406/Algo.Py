@@ -1,32 +1,86 @@
-version: '3'
 services:
   app:
     container_name: algopy_app
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
     ports:
-      - "5000:5000"  # Assuming your app runs on port 5000
+      - '8501:8501'
     environment:
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
       - DATABASE_URL=postgresql://postgres:admin@timescaledb:5432/db
     volumes:
-      - .:/app  # Mount the current directory to /app in the container
+      - .:/app:ro # Mount as read-only
+      - ./database/db:/app/database/db
+      - app_cache:/app/.cache
     depends_on:
-      - timescaledb
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8501/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
 
   timescaledb:
     image: timescale/timescaledb-ha:pg16
     container_name: timescaledb
     ports:
-      - "5432:5432"
+      - '5432:5432'
     environment:
-      POSTGRES_PASSWORD: admin
-      POSTGRES_USER: postgres
-      POSTGRES_DB: db
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=db
+      - TZ=UTC
     volumes:
       - timescaledb_data:/home/postgres/pgdata/data
-    restart: always  # Automatically restart the container if stopped
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
 volumes:
   timescaledb_data:
-    driver: local  # Persist TimescaleDB data
+    driver: local
+  app_cache:
+    driver: local
+
+networks:
+  default:
+    driver: bridge

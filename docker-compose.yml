@@ -4,8 +4,44 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
     ports:
-      - "5000:5000"
+      - '8501:8501'
     volumes:
-      - .:/app  # Mount the current directory to /app in the container
-      - ./database/db:/app/database/db  # Mount the volume for finstore database
+      - ./database/db:/app/database/db # Keep database writable
+      - app_cache:/home/algopy/.cache # Move cache to user home
+    environment:
+      - TZ=UTC
+      - PYTHONUNBUFFERED=1
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - XDG_CACHE_HOME=/home/algopy/.cache
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8501/']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+volumes:
+  app_cache:
+    driver: local
+
+networks:
+  default:
+    driver: bridge
