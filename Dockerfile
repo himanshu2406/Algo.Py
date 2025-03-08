@@ -1,97 +1,120 @@
-# Use the official Python 3.11 image as a base
+# syntax=docker/dockerfile:1.4
+FROM python:3.11 AS builder
+
+# Set build arguments
+ARG PYTHON_VERSION=3.11
+ARG NUMPY_VERSION=1.24.2
+
+# Set up environment
+ENV PYTHONUNBUFFERED=1 \
+  PYTHONDONTWRITEBYTECODE=1 \
+  PIP_NO_CACHE_DIR=1 \
+  PIP_DISABLE_PIP_VERSION_CHECK=1 \
+  DEBIAN_FRONTEND=noninteractive \
+  PYTHONPATH="${PYTHONPATH}:/build"
+
+WORKDIR /build
+
+# Install system dependencies and ta-lib
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  build-essential \
+  wget \
+  curl \
+  git \
+  ca-certificates \
+  cmake \
+  automake \
+  libtool \
+  && wget https://netcologne.dl.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz \
+  && tar -xzf ta-lib-0.4.0-src.tar.gz \
+  && cd ta-lib/ \
+  && echo "Updating config.guess and config.sub for ARM64 support" \
+  && wget -q -O config.guess 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD' \
+  && wget -q -O config.sub 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD' \
+  && chmod +x config.guess config.sub \
+  && ./configure --prefix=/usr \
+  && make \
+  && make install \
+  && cd .. \
+  && rm -rf ta-lib ta-lib-0.4.0-src.tar.gz \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+# Use pip for package installation
+RUN pip install --upgrade pip setuptools wheel
+
+# Prepare virtual environment
+RUN python -m venv /venv \
+  && . /venv/bin/activate \
+  && pip install --upgrade pip setuptools wheel
+
+# Copy all application code
+COPY . /build/
+
+# Install core dependencies with pip
+RUN . /venv/bin/activate \
+  && pip install numpy==1.23.5 \
+  && pip install pandas==1.5.3 \
+  && pip install TA-Lib==0.4.32 \
+  && pip install --ignore-installed llvmlite \
+  && pip install pybind11 \
+  && echo "Installing alternative for pandas_ta..." \
+  && pip install git+https://github.com/twopirllc/pandas-ta.git@development \
+  && pip install -r requirements.txt \
+  && pip install st-pages \
+  && pip install --no-deps universal-portfolios \
+  && cd vectorbt && pip install -e . \
+  && echo "Verifying installations..." \
+  && python -c "import numpy; print(f'numpy version: {numpy.__version__}')" \
+  && python -c "import pandas; print(f'pandas version: {pandas.__version__}')" \
+  && python -c "import pandas_ta; print('pandas_ta imported successfully')"
+
+# Install jupyter and kernel
+RUN . /venv/bin/activate \
+  && pip install jupyter ipykernel \
+  && python -m ipykernel install --user --name=python3 --display-name "Python 3"
+
+# Start fresh with a clean image
 FROM python:3.11
 
-# Set the working directory in the container
+# Set metadata
+LABEL maintainer="Your Name <your.email@example.com>"
+LABEL description="AlgoPy Trading Framework"
+LABEL version="1.0"
+
 WORKDIR /app
 
-# Install system dependencies for ta-lib
-RUN apt-get update && \
- apt-get install -yq --no-install-recommends cmake && \
- apt-get clean && \
- rm -rf /var/lib/apt/lists/*
+# Copy virtual environment and files from builder
+COPY --from=builder /venv /venv
+COPY --from=builder /build /app
+COPY --from=builder /usr/lib/libta_lib* /usr/lib/
+COPY --from=builder /usr/include/ta-lib /usr/include/ta-lib
 
-RUN wget https://netcologne.dl.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz && \
-  tar -xvzf ta-lib-0.4.0-src.tar.gz && \
-  cd ta-lib/ && \
-  ./configure --prefix=/usr --build=unknown-unknown-linux && \
-  make && \
-  make install
+# Set environment variables
+ENV PATH="/venv/bin:$PATH" \
+  PYTHONUNBUFFERED=1 \
+  PYTHONDONTWRITEBYTECODE=1 \
+  STREAMLIT_SERVER_PORT=8501 \
+  STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
+  XDG_CACHE_HOME=/home/algopy/.cache \
+  PYTHONPATH="${PYTHONPATH}:/app"
 
-RUN rm -R ta-lib ta-lib-0.4.0-src.tar.gz
+# Install only runtime dependencies and prepare user
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  curl \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/* \
+  && useradd -m -u 1000 algopy \
+  && mkdir -p /home/algopy/.cache \
+  && chown -R algopy:algopy /app /home/algopy
 
-RUN pip install --no-cache-dir TA-Lib==0.4.32
+# Change to non-root user
+USER algopy
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+# Expose port and add healthcheck
+EXPOSE 8501
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8501/ || exit 1
 
-# Install the dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the rest of the application code into the container
-COPY . .
-
-RUN pip install --quiet --no-cache-dir \
-    'plotly>=5.0.0' \
-    'kaleido'
-
-RUN pip install --quiet --no-cache-dir 'pybind11'
-RUN pip install --quiet --no-cache-dir --ignore-installed 'llvmlite'
-
-RUN pip install --quiet --no-cache-dir \
-    'numpy==1.24.2' \
-    'pandas>=1.5.0' \
-    'numba==0.60.0' \
-    'schedule' \
-    'ipywidgets>=7.0.0' \
-    'python-dateutil' \
-    'dateparser' \
-    'imageio' \
-    'mypy_extensions' \
-    'humanize' \
-    'attrs>=21.1.0' \
-    'websocket-client' \
-    'yfinance>=0.2.20' \
-    'python-binance>=1.0.16' \
-    'alpaca-py' \
-    'ccxt>=1.89.14' \
-    'tables' \
-    'SQLAlchemy>=2.0.0' \
-    'duckdb' \
-    'duckdb-engine' \
-    'pyarrow' \
-    'polygon-api-client>=1.0.0' \
-    'beautifulsoup4' \
-    'nasdaq-data-link' \
-    'alpha_vantage' \
-    'databento'  \
-    'technical' \
-    'numexpr' \
-    'hyperopt' \
-    'optuna' \
-    'pathos' \
-    'mpire' \
-    'dask' \
-    'ray>=1.4.1' \
-    'plotly-resampler' \
-    'quantstats>=0.0.37' \
-    'PyPortfolioOpt>=1.5.1' \
-    'Riskfolio-Lib>=3.3.0' \
-    'python-telegram-bot>=13.4' \
-    'dill' \
-    'lz4' \
-    'blosc2' \
-    'ta' \
-    'pandas_ta' \
-    'tabulate'
-
-RUN pip install --quiet --no-cache-dir --no-deps 'universal-portfolios'
-RUN pip install --quiet --no-cache-dir 'pandas_datareader'
-
-RUN pip install --quiet --no-cache-dir jupyter ipykernel
-
-RUN python -m ipykernel install --user --name=python3 --display-name "Python 3"
-
-ENV PYTHONPATH="${PYTHONPATH}:/app"
-
-# Command to keep the container running
-CMD ["tail", "-f", "/dev/null"]
+# Run streamlit
+CMD ["streamlit", "run", "Dashboard/main_dash.py"]
