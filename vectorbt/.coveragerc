@@ -1,0 +1,21 @@
+[run]
+branch = True
+source = vectorbt
+
+[report]
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if __name__ == .__main__.:
+ignore_errors = True
+omit =
+    */px_accessors.py
+    */utils/colors.py
+    */utils/figure.py
+    */utils/image_.py
+    */utils/module_.py
+    */utils/requests_.py
+    */generic/plotting.py
+    */generic/plots_builder.py
+    */data/custom.py
+    */messaging/telegram.py

@@ -1,5 +1,5 @@
 import pandas as pd
-import vectorbtpro as vbt
+import vectorbt as vbt
 from strategy.private.SOTM import get_signals
 
 def construct_portfolio(init_cash : float = 100000,
