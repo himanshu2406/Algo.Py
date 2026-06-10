@@ -7,7 +7,7 @@ RUN apt-get update && \
  apt-get clean && \
  rm -rf /var/lib/apt/lists/*
 
-RUN wget https://netcologne.dl.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz && \
+RUN wget -O ta-lib-0.4.0-src.tar.gz "https://sourceforge.net/projects/ta-lib/files/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz/download" && \
   tar -xvzf ta-lib-0.4.0-src.tar.gz && \
   cd ta-lib/ && \
   ./configure --prefix=/usr --build=unknown-unknown-linux && \
