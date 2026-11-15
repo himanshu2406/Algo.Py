@@ -1,9 +1,46 @@
 import pandas as pd
 from utils.decorators import result_df_decorator
-import pandas_ta as ta
+import fin_primitives as fp
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
+
+
+def _on_valid_rows(func, df, columns):
+    """
+    Run ``func`` on the rows of ``df`` where every column in ``columns`` is present and
+    return the result aligned to ``df.index`` (NaN where an input was missing).
+    fin_primitives rejects NaN inputs, so missing bars are skipped instead of failing.
+    """
+    valid = df[columns].dropna()
+    if valid.empty:
+        return pd.Series(np.nan, index=df.index, dtype='float64')
+    return pd.Series(func(valid), index=valid.index, dtype='float64').reindex(df.index)
+
+def _supertrend_line(df, length, multiplier):
+    """
+    Supertrend line: hl2 +/- multiplier * ATR (Wilder), with the bands ratcheting while the
+    trend holds. Same rules as pandas_ta.supertrend's SUPERT column.
+    """
+    atr = fp.compute('wilder_smoothed_range', df['close'], length, high=df['high'], low=df['low']).to_numpy(dtype='float64')
+    hl2 = ((df['high'] + df['low']) / 2).to_numpy(dtype='float64')
+    close = df['close'].to_numpy(dtype='float64')
+    upper = hl2 + multiplier * atr
+    lower = hl2 - multiplier * atr
+    trend = np.full(close.shape, np.nan)
+    direction = 1
+    for i in range(1, close.shape[0]):
+        if close[i] > upper[i - 1]:
+            direction = 1
+        elif close[i] < lower[i - 1]:
+            direction = -1
+        else:
+            if direction > 0 and lower[i] < lower[i - 1]:
+                lower[i] = lower[i - 1]
+            if direction < 0 and upper[i] > upper[i - 1]:
+                upper[i] = upper[i - 1]
+        trend[i] = lower[i] if direction > 0 else upper[i]
+    return trend
 
 @result_df_decorator(lambda length: f'ema_{length}')
 def calculate_ema(df, length):
@@ -23,7 +60,8 @@ def calculate_ema(df, length):
 @result_df_decorator(lambda length: f'rsi_{length}')
 def calculate_rsi(df, length):
     """
-    Calculate the Relative Strength Index (RSI) for a given length using the 'pandas_ta' library.
+    Calculate the Relative Strength Index (RSI) for a given length with Wilder's smoothing
+    (same values as TA-Lib's RSI).
 
     Parameters:
     df (pd.DataFrame): DataFrame containing OHLCV data with a 'timestamp' column.
@@ -32,8 +70,7 @@ def calculate_rsi(df, length):
     Returns:
     pd.DataFrame: DataFrame with columns 'timestamp', 'indicator_name', 'indicator_value'.
     """
-    rsi = df.ta.rsi(length=length)
-    return rsi
+    return _on_valid_rows(lambda d: fp.rsi(d['close'], length), df, ['close'])
 
 @result_df_decorator(lambda length, atr_multiplier: f'supertrend_{length}_{atr_multiplier}')
 def calculate_supertrend(df, atr_multiplier=3.0, length=10):
@@ -48,13 +85,11 @@ def calculate_supertrend(df, atr_multiplier=3.0, length=10):
     Returns:
     pd.Series: Supertrend values.
     """
-    supertrend = ta.supertrend(high=df['high'], low=df['low'], close=df['close'], length=length, multiplier=atr_multiplier)
-    column_name = f'SUPERT_{length}_{atr_multiplier}'
-    return supertrend[column_name]
+    return _on_valid_rows(lambda d: _supertrend_line(d, length, atr_multiplier), df, ['high', 'low', 'close'])
 
 @result_df_decorator(lambda length: f'roc_{length}')
 def calculate_roc(df, lookback_period):
-    return ta.roc(df['close'], length=lookback_period)
+    return _on_valid_rows(lambda d: fp.compute('roc', d['close'], lookback_period), df, ['close'])
 
 @result_df_decorator(lambda lookback_period: f'average_volume_{lookback_period}')
 def calculate_average_volume(df,lookback_period):
